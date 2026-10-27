@@ -21,6 +21,8 @@ import pe.upeu.agrosierra_ticona.presentation.lotes.LotesViewModel
 
 import pe.upeu.agrosierra_ticona.presentation.detallelote.DetalleLoteViewModel
 import pe.upeu.agrosierra_ticona.presentation.laborform.LaborFormViewModel
+import pe.upeu.agrosierra_ticona.presentation.detallelote.EliminarLaborViewModel
+
 val appModule = module {
 
     // 1. CLIENTE HTTP KTOR
@@ -103,6 +105,11 @@ val appModule = module {
     }
     factory {
         LaborFormViewModel(
+            laborRepository = get()
+        )
+    }
+    factory {
+        EliminarLaborViewModel(
             laborRepository = get()
         )
     }
