@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=AgroSierra_Ticona
+PRODUCT_BUNDLE_IDENTIFIER=pe.upeu.agrosierra_ticona.AgroSierra_Ticona$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
