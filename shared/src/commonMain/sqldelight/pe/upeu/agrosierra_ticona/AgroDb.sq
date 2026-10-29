@@ -1,0 +1,264 @@
+
+-- ==========================================
+-- TABLA LOTE
+-- ==========================================
+
+CREATE TABLE lote (
+    id INTEGER NOT NULL PRIMARY KEY,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    hectareas REAL NOT NULL,
+    cultivo TEXT NOT NULL,
+    valle TEXT NOT NULL,
+    campaniaCerrada INTEGER NOT NULL,
+    dosisMaximaPorHectarea REAL NOT NULL
+);
+
+-- ==========================================
+-- TABLA LABOR
+-- ==========================================
+
+CREATE TABLE labor (
+    id INTEGER NOT NULL PRIMARY KEY,
+    loteId INTEGER NOT NULL,
+    tipo TEXT NOT NULL,
+    fecha TEXT NOT NULL,
+    responsable TEXT NOT NULL,
+    cantidad REAL NOT NULL,
+    observacion TEXT NOT NULL,
+    pendiente INTEGER NOT NULL DEFAULT 0,
+    eliminado INTEGER NOT NULL DEFAULT 0,
+    operacionPendiente TEXT NOT NULL DEFAULT 'NINGUNA'
+);
+
+-- ==========================================
+-- CONSULTAS DE LOTES
+-- ==========================================
+
+-- 1. Listar todos los lotes
+seleccionarLotes:
+SELECT *
+FROM lote
+ORDER BY id ASC;
+
+-- 2. Buscar lote por ID
+seleccionarLotePorId:
+SELECT *
+FROM lote
+WHERE id = ?;
+
+-- 3. Insertar o actualizar lote
+insertarLote:
+INSERT OR REPLACE INTO lote (
+    id,
+    codigo,
+    nombre,
+    hectareas,
+    cultivo,
+    valle,
+    campaniaCerrada,
+    dosisMaximaPorHectarea
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- 4. Eliminar todos los lotes
+eliminarLotes:
+DELETE FROM lote;
+
+-- ==========================================
+-- CONSULTAS DE LABORES
+-- ==========================================
+
+-- 5. Observar labores por lote
+observarLaboresPorLote:
+SELECT *
+FROM labor
+WHERE loteId = ?
+AND eliminado = 0
+ORDER BY fecha DESC;
+
+-- 6. Seleccionar labores por lote
+seleccionarLaboresPorLote:
+SELECT *
+FROM labor
+WHERE loteId = ?
+AND eliminado = 0
+ORDER BY fecha DESC, id DESC;
+
+-- 7. Seleccionar labor por ID
+seleccionarLaborPorId:
+SELECT *
+FROM labor
+WHERE id = ?;
+
+-- 8. Seleccionar labor activa por ID
+seleccionarLaborActivaPorId:
+SELECT *
+FROM labor
+WHERE id = ?
+AND eliminado = 0;
+
+-- 9. Seleccionar labores activas
+seleccionarLaboresActivas:
+SELECT *
+FROM labor
+WHERE eliminado = 0
+ORDER BY fecha DESC, id DESC;
+
+-- 10. Seleccionar labores pendientes
+seleccionarLaboresPendientes:
+SELECT *
+FROM labor
+WHERE pendiente = 1
+ORDER BY id ASC;
+
+-- 11. Seleccionar labores por crear
+seleccionarLaboresPorCrear:
+SELECT *
+FROM labor
+WHERE pendiente = 1
+AND operacionPendiente = 'CREAR';
+
+-- 12. Seleccionar labores por actualizar
+seleccionarLaboresPorActualizar:
+SELECT *
+FROM labor
+WHERE pendiente = 1
+AND operacionPendiente = 'ACTUALIZAR';
+
+-- 13. Seleccionar labores por eliminar
+seleccionarLaboresPorEliminar:
+SELECT *
+FROM labor
+WHERE pendiente = 1
+AND operacionPendiente = 'ELIMINAR';
+
+-- 14. Seleccionar labores descartadas
+seleccionarLaboresDescartadas:
+SELECT *
+FROM labor
+WHERE pendiente = 1
+AND operacionPendiente = 'DESCARTAR';
+
+-- ==========================================
+-- GENERACIÓN DE IDS LOCALES
+-- ==========================================
+
+-- Consulta proporcionada por el profesor.
+-- COALESCE evita NULL cuando la tabla está vacía.
+-- minOf en Kotlin garantiza un ID provisional negativo.
+
+siguienteIdLocal:
+SELECT COALESCE(MIN(id), 0)
+FROM labor;
+
+-- Consulta utilizada por LaborRepositoryImpl.
+obtenerSiguienteIdLocal:
+SELECT COALESCE(MIN(id), 0) - 1
+FROM labor
+WHERE id < 0;
+
+-- ==========================================
+-- REGISTRAR Y ACTUALIZAR LABORES
+-- ==========================================
+
+-- 15. Insertar o actualizar labor
+insertarLabor:
+INSERT OR REPLACE INTO labor (
+    id,
+    loteId,
+    tipo,
+    fecha,
+    responsable,
+    cantidad,
+    observacion,
+    pendiente,
+    eliminado,
+    operacionPendiente
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- ==========================================
+-- ELIMINACIÓN LÓGICA
+-- ==========================================
+
+-- 16. Marcar labor como eliminada
+marcarLaborEliminada:
+UPDATE labor
+SET
+    eliminado = 1,
+    pendiente = 1,
+    operacionPendiente =
+        CASE
+            WHEN operacionPendiente = 'CREAR'
+                THEN 'DESCARTAR'
+            ELSE 'ELIMINAR'
+        END
+WHERE id = ?;
+
+-- ==========================================
+-- SINCRONIZACIÓN
+-- ==========================================
+
+-- 17. Marcar labor como sincronizada
+marcarLaborSincronizada:
+UPDATE labor
+SET
+    pendiente = 0,
+    operacionPendiente = 'NINGUNA'
+WHERE id = ?;
+
+-- 18. Eliminar labor definitivamente
+eliminarLabor:
+DELETE FROM labor
+WHERE id = ?;
+
+-- 19. Eliminar labores descartadas
+eliminarLaboresDescartadas:
+DELETE FROM labor
+WHERE operacionPendiente = 'DESCARTAR';
+
+-- 20. Contar labores pendientes
+contarLaboresPendientes:
+SELECT COUNT(*)
+FROM labor
+WHERE pendiente = 1
+AND operacionPendiente != 'DESCARTAR';
+
+
+
+-- ==========================================
+-- TABLA SESION
+-- ==========================================
+
+CREATE TABLE sesion (
+    id INTEGER NOT NULL PRIMARY KEY,
+    token TEXT NOT NULL,
+    usuario TEXT NOT NULL,
+    rol TEXT NOT NULL,
+    privilegios TEXT NOT NULL,
+    fechaExpiracion INTEGER NOT NULL
+);
+
+-- ==========================================
+-- CONSULTAS DE SESION
+-- ==========================================
+
+guardarSesion:
+INSERT OR REPLACE INTO sesion (
+    id,
+    token,
+    usuario,
+    rol,
+    privilegios,
+    fechaExpiracion
+)
+VALUES (?, ?, ?, ?, ?, ?);
+
+obtenerSesion:
+SELECT *
+FROM sesion
+LIMIT 1;
+
+eliminarSesion:
+DELETE FROM sesion;

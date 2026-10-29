@@ -1,6 +1,6 @@
+
 package pe.upeu.agrosierra_ticona.data.repository
 
-import pe.upeu.agrosierraticona.`data`.local.Lote as LoteEntity
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOneOrNull
@@ -8,9 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import pe.upeu.agrosierra_ticona.data.local.AgroSierraDatabase
+import pe.upeu.agrosierra_ticona.data.remote.AgroApiService
 import pe.upeu.agrosierra_ticona.domain.model.Lote
 import pe.upeu.agrosierra_ticona.domain.repository.LoteRepository
-import pe.upeu.agrosierra_ticona.data.remote.AgroApiService
 import pe.upeu.agrosierra_ticona.domain.repository.SesionRepository
 
 class LoteRepositoryImpl(
@@ -19,26 +19,59 @@ class LoteRepositoryImpl(
     private val sesionRepository: SesionRepository
 ) : LoteRepository {
 
-    private val queries = database.loteQueries
+    private val queries = database.agroDbQueries
 
     override fun observarLotes(): Flow<List<Lote>> {
-        return queries.seleccionarLotes()
+
+        return queries
+            .seleccionarLotes()
             .asFlow()
             .mapToList(Dispatchers.Default)
-            .map { lista ->
-                lista.map { it.toDomain() }
+            .map { registros ->
+
+                registros.map { registro ->
+
+                    Lote(
+                        id = registro.id,
+                        codigo = registro.codigo,
+                        nombre = registro.nombre,
+                        hectareas = registro.hectareas,
+                        cultivo = registro.cultivo,
+                        valle = registro.valle,
+                        campaniaCerrada =
+                            registro.campaniaCerrada != 0L,
+                        dosisMaximaPorHectarea =
+                            registro.dosisMaximaPorHectarea
+                    )
+                }
             }
     }
 
-    override fun observarLotePorId(
-        id: Long
-    ): Flow<Lote?> {
-        return queries.seleccionarLotePorId(id)
+    override fun observarLotePorId(id: Long): Flow<Lote?> {
+
+        return queries
+            .seleccionarLotePorId(id)
             .asFlow()
             .mapToOneOrNull(Dispatchers.Default)
-            .map { it?.toDomain() }
-    }
+            .map { registro ->
 
+                registro?.let {
+
+                    Lote(
+                        id = it.id,
+                        codigo = it.codigo,
+                        nombre = it.nombre,
+                        hectareas = it.hectareas,
+                        cultivo = it.cultivo,
+                        valle = it.valle,
+                        campaniaCerrada =
+                            it.campaniaCerrada != 0L,
+                        dosisMaximaPorHectarea =
+                            it.dosisMaximaPorHectarea
+                    )
+                }
+            }
+    }
 
     override suspend fun sincronizarLotes() {
 
@@ -47,11 +80,9 @@ class LoteRepositoryImpl(
                 "No existe una sesión activa"
             )
 
-        val resultado = apiService.obtenerLotes(sesion.token)
-
-        val lotesRemotos = resultado.getOrElse { error ->
-            throw error
-        }
+        val lotesRemotos = apiService
+            .obtenerLotes(sesion.token)
+            .getOrElse { throw it }
 
         database.transaction {
 
@@ -75,8 +106,6 @@ class LoteRepositoryImpl(
         }
     }
 
-
-
     override suspend fun cerrarCampania(
         id: Long
     ): Result<Lote> {
@@ -90,55 +119,41 @@ class LoteRepositoryImpl(
                     )
                 )
 
-            val resultado = apiService.cerrarCampania(
-                id = id,
-                token = sesion.token
-            )
-
-            resultado.map { lote ->
-
-                queries.insertarLote(
-                    id = lote.id,
-                    codigo = lote.codigo,
-                    nombre = lote.nombre,
-                    hectareas = lote.hectareas,
-                    cultivo = lote.cultivo,
-                    valle = lote.valle,
-                    campaniaCerrada =
-                        if (lote.campaniaCerrada) 1L else 0L,
-                    dosisMaximaPorHectarea =
-                        lote.dosisMaximaPorHectarea
+            apiService
+                .cerrarCampania(
+                    id = id,
+                    token = sesion.token
                 )
+                .map { lote ->
 
-                Lote(
-                    id = lote.id,
-                    codigo = lote.codigo,
-                    nombre = lote.nombre,
-                    hectareas = lote.hectareas,
-                    cultivo = lote.cultivo,
-                    valle = lote.valle,
-                    campaniaCerrada = lote.campaniaCerrada,
-                    dosisMaximaPorHectarea =
-                        lote.dosisMaximaPorHectarea
-                )
-            }
+                    queries.insertarLote(
+                        id = lote.id,
+                        codigo = lote.codigo,
+                        nombre = lote.nombre,
+                        hectareas = lote.hectareas,
+                        cultivo = lote.cultivo,
+                        valle = lote.valle,
+                        campaniaCerrada =
+                            if (lote.campaniaCerrada) 1L else 0L,
+                        dosisMaximaPorHectarea =
+                            lote.dosisMaximaPorHectarea
+                    )
+
+                    Lote(
+                        id = lote.id,
+                        codigo = lote.codigo,
+                        nombre = lote.nombre,
+                        hectareas = lote.hectareas,
+                        cultivo = lote.cultivo,
+                        valle = lote.valle,
+                        campaniaCerrada = lote.campaniaCerrada,
+                        dosisMaximaPorHectarea =
+                            lote.dosisMaximaPorHectarea
+                    )
+                }
 
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-
-    private fun LoteEntity.toDomain(): Lote {
-        return Lote(
-            id = id,
-            codigo = codigo,
-            nombre = nombre,
-            hectareas = hectareas,
-            cultivo = cultivo,
-            valle = valle,
-            campaniaCerrada = campaniaCerrada != 0L,
-            dosisMaximaPorHectarea = dosisMaximaPorHectarea
-        )
     }
 }

@@ -26,7 +26,8 @@ class LaborRepositoryImpl(
     private val sesionRepository: SesionRepository
 ) : LaborRepository {
 
-    private val queries = database.laborQueries
+    // Adaptado para utilizar AgroDb.sq
+    private val queries = database.agroDbQueries
 
     // ==========================================
     // 1. OBSERVAR LABORES POR LOTE
@@ -287,7 +288,7 @@ class LaborRepositoryImpl(
             .executeAsList()
 
         // Descartar labores creadas y eliminadas
-        // antes de llegar al servidor
+        // antes de llegar al servidor.
         pendientes
             .filter {
                 it.operacionPendiente == "DESCARTAR"

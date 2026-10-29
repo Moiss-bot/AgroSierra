@@ -5,11 +5,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+
 import androidx.compose.runtime.*
 
-import org.koin.compose.koinInject
-import pe.upeu.agrosierra_ticona.domain.repository.LoteRepository
-import pe.upeu.agrosierra_ticona.domain.repository.LaborRepository
+import org.koin.compose.viewmodel.koinViewModel
+
+import pe.upeu.agrosierra_ticona.presentation.login.LoginScreen
+import pe.upeu.agrosierra_ticona.presentation.login.LoginViewModel
 
 import pe.upeu.agrosierra_ticona.presentation.lotes.LotesScreen
 import pe.upeu.agrosierra_ticona.presentation.lotes.LotesViewModel
@@ -21,7 +23,13 @@ import pe.upeu.agrosierra_ticona.presentation.detallelote.EliminarLaborViewModel
 import pe.upeu.agrosierra_ticona.presentation.laborform.LaborFormScreen
 import pe.upeu.agrosierra_ticona.presentation.laborform.LaborFormViewModel
 
+// ==========================================
+// PANTALLAS DE LA APLICACIÓN
+// ==========================================
+
 private sealed interface Pantalla {
+
+    data object Login : Pantalla
 
     data object Lotes : Pantalla
 
@@ -39,76 +47,86 @@ private sealed interface Pantalla {
 fun AgroNavigation() {
 
     // ==========================================
-    // DEPENDENCIAS DE KOIN
+    // 1. VIEWMODELS DE KOIN
     // ==========================================
 
-    val loteRepository: LoteRepository = koinInject()
-    val laborRepository: LaborRepository = koinInject()
+    val loginViewModel: LoginViewModel = koinViewModel()
 
-    // ViewModels conservados durante recomposición.
-    // Más adelante implementaremos propietarios
-    // de ciclo de vida por pantalla.
+    val lotesViewModel: LotesViewModel = koinViewModel()
 
-    val lotesViewModel = remember(
-        loteRepository
-    ) {
-        LotesViewModel(
-            loteRepository = loteRepository
-        )
-    }
+    val detalleViewModel: DetalleLoteViewModel = koinViewModel()
 
-    val detalleViewModel = remember(
-        loteRepository,
-        laborRepository
-    ) {
-        DetalleLoteViewModel(
-            loteRepository = loteRepository,
-            laborRepository = laborRepository
-        )
-    }
+    val laborFormViewModel: LaborFormViewModel = koinViewModel()
 
-    val laborFormViewModel = remember(
-        laborRepository
-    ) {
-        LaborFormViewModel(
-            laborRepository = laborRepository
-        )
-    }
+    val eliminarLaborViewModel: EliminarLaborViewModel = koinViewModel()
 
-    val eliminarLaborViewModel = remember(
-        laborRepository
-    ) {
-        EliminarLaborViewModel(
-            laborRepository = laborRepository
-        )
-    }
+    // ==========================================
+    // 2. ESTADO DE ELIMINACIÓN
+    // ==========================================
 
     val eliminarUiState by eliminarLaborViewModel
         .uiState.collectAsState()
-
-    var pantallaActual by remember {
-        mutableStateOf<Pantalla>(Pantalla.Lotes)
-    }
 
     var laborParaEliminar by remember {
         mutableStateOf<Long?>(null)
     }
 
     // ==========================================
-    // PANTALLA PRINCIPAL
+    // 3. ESTADO DE NAVEGACIÓN
+    // ==========================================
+
+    var pantallaActual by remember {
+        mutableStateOf<Pantalla>(Pantalla.Login)
+    }
+
+    // ==========================================
+    // 4. NAVEGACIÓN PRINCIPAL
     // ==========================================
 
     when (val pantalla = pantallaActual) {
+
+        // ======================================
+        // LOGIN
+        // ======================================
+
+        Pantalla.Login -> {
+
+            LoginScreen(
+                viewModel = loginViewModel,
+
+                // NUEVO: Navegar después del login JWT
+                onLoginExitoso = {
+                    pantallaActual = Pantalla.Lotes
+                },
+
+                // Acceso temporal para pruebas
+                onIngresarModoDesarrollo = {
+                    pantallaActual = Pantalla.Lotes
+                }
+            )
+        }
+
+        // ======================================
+        // LISTADO DE LOTES
+        // ======================================
 
         Pantalla.Lotes -> {
 
             LotesScreen(
                 viewModel = lotesViewModel,
-                onLoteClick = { loteId ->
 
+                onLoteClick = { loteId ->
                     pantallaActual = Pantalla.DetalleLote(
                         loteId = loteId
                     )
+                },
+
+                onCerrarSesion = {
+                    laborParaEliminar = null
+
+                    eliminarLaborViewModel.limpiarEstado()
+
+                    pantallaActual = Pantalla.Login
                 }
             )
         }
@@ -121,6 +139,7 @@ fun AgroNavigation() {
 
             DetalleLoteScreen(
                 loteId = pantalla.loteId,
+
                 viewModel = detalleViewModel,
 
                 onVolver = {
@@ -128,14 +147,12 @@ fun AgroNavigation() {
                 },
 
                 onRegistrarLabor = { loteId ->
-
                     pantallaActual = Pantalla.FormularioLabor(
                         loteId = loteId
                     )
                 },
 
                 onEditarLabor = { laborId ->
-
                     pantallaActual = Pantalla.FormularioLabor(
                         loteId = pantalla.loteId,
                         laborId = laborId
@@ -143,8 +160,8 @@ fun AgroNavigation() {
                 },
 
                 onEliminarLabor = { laborId ->
-
                     eliminarLaborViewModel.limpiarEstado()
+
                     laborParaEliminar = laborId
                 }
             )
@@ -158,18 +175,18 @@ fun AgroNavigation() {
 
             LaborFormScreen(
                 loteId = pantalla.loteId,
+
                 laborId = pantalla.laborId,
+
                 viewModel = laborFormViewModel,
 
                 onVolver = {
-
                     pantallaActual = Pantalla.DetalleLote(
                         loteId = pantalla.loteId
                     )
                 },
 
                 onGuardado = {
-
                     pantallaActual = Pantalla.DetalleLote(
                         loteId = pantalla.loteId
                     )
@@ -179,16 +196,18 @@ fun AgroNavigation() {
     }
 
     // ==========================================
-    // CONFIRMAR ELIMINACIÓN
+    // 5. CONFIRMACIÓN DE ELIMINACIÓN
     // ==========================================
 
     laborParaEliminar?.let { laborId ->
 
         AlertDialog(
-            onDismissRequest = {
 
+            onDismissRequest = {
                 if (!eliminarUiState.eliminando) {
+
                     laborParaEliminar = null
+
                     eliminarLaborViewModel.limpiarEstado()
                 }
             },
@@ -198,7 +217,6 @@ fun AgroNavigation() {
             },
 
             text = {
-
                 if (eliminarUiState.eliminando) {
 
                     CircularProgressIndicator()
@@ -216,8 +234,8 @@ fun AgroNavigation() {
 
                 TextButton(
                     enabled = !eliminarUiState.eliminando,
-                    onClick = {
 
+                    onClick = {
                         eliminarLaborViewModel.eliminarLabor(
                             laborId
                         )
@@ -231,9 +249,10 @@ fun AgroNavigation() {
 
                 TextButton(
                     enabled = !eliminarUiState.eliminando,
-                    onClick = {
 
+                    onClick = {
                         laborParaEliminar = null
+
                         eliminarLaborViewModel.limpiarEstado()
                     }
                 ) {
@@ -244,16 +263,16 @@ fun AgroNavigation() {
     }
 
     // ==========================================
-    // FINALIZAR ELIMINACIÓN
+    // 6. FINALIZAR ELIMINACIÓN
     // ==========================================
 
     LaunchedEffect(
         eliminarUiState.eliminadaCorrectamente
     ) {
-
         if (eliminarUiState.eliminadaCorrectamente) {
 
             laborParaEliminar = null
+
             eliminarLaborViewModel.limpiarEstado()
         }
     }
